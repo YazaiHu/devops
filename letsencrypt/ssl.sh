@@ -169,10 +169,21 @@ generate_certificate() {
 setup_auto_renewal() {
     echo -e "${GREEN}配置自动续期...${NC}"
 
-    # 添加 cron 任务
-    (crontab -l 2>/dev/null; echo "0 12 * * * /usr/bin/certbot renew --quiet") | crontab -
+    # 1. 检查 Systemd Timer (首选)
+    if systemctl list-timers --all 2>/dev/null | grep -q "certbot"; then
+        echo -e "${GREEN}检测到 Certbot Systemd Timer 已激活，无需添加 Crontab 任务。${NC}"
+    else
+        # 2. 检查 Crontab (备选)
+        if crontab -l 2>/dev/null | grep -q "certbot renew"; then
+            echo -e "${YELLOW}Crontab 中已存在 Certbot 续期任务，跳过添加。${NC}"
+        else
+            echo -e "${GREEN}添加 Crontab 定时任务...${NC}"
+            (crontab -l 2>/dev/null; echo "0 12 * * * /usr/bin/certbot renew --quiet") | crontab -
+        fi
+    fi
 
     # 测试续期
+    echo -e "${GREEN}正在运行续期测试 (dry-run)...${NC}"
     certbot renew --dry-run
 
     echo -e "${GREEN}自动续期配置完成${NC}"
