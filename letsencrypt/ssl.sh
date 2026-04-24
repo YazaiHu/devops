@@ -182,9 +182,18 @@ setup_auto_renewal() {
         fi
     fi
 
-    # 测试续期
-    echo -e "${GREEN}正在运行续期测试 (dry-run)...${NC}"
-    certbot renew --dry-run
+    # 仅针对本次主域名的证书做续期演练（避免本机其他 lineage 失败拖垮整个脚本）
+    echo -e "${GREEN}正在运行续期测试 (dry-run)，证书名: ${MAIN_DOMAIN}...${NC}"
+    if ! certbot renew --dry-run --cert-name "$MAIN_DOMAIN"; then
+        echo -e "${RED}续期 dry-run 未通过。${NC}"
+        echo "若出现 'Certificate not found' 或 'malformed'，常见原因与处理："
+        echo "  1) renewal 与当前 ACME 账户不一致，或 /etc/letsencrypt 曾被部分删除："
+        echo "     sudo certbot delete --cert-name $MAIN_DOMAIN"
+        echo "     然后重新运行本脚本申请证书"
+        echo "  2) 查看详细日志: sudo tail -100 /var/log/letsencrypt/letsencrypt.log"
+        echo "  3) 调试: sudo certbot renew --dry-run -v --cert-name $MAIN_DOMAIN"
+        exit 1
+    fi
 
     echo -e "${GREEN}自动续期配置完成${NC}"
 }
@@ -199,7 +208,9 @@ show_certificate_info() {
     echo "  - 完整证书链：fullchain.pem（推荐使用）"
     echo
     echo -e "${GREEN}证书有效期：${NC}"
-    certbot certificates | grep -A 10 "${MAIN_DOMAIN}"
+    if ! certbot certificates 2>/dev/null | grep -A 10 -- "${MAIN_DOMAIN}"; then
+        echo -e "${YELLOW}未在 certbot certificates 输出中找到 ${MAIN_DOMAIN}。${NC}"
+    fi
     echo
     echo -e "${GREEN}Nginx 配置示例已保存至 nginx-ssl-config.conf${NC}"
 }
